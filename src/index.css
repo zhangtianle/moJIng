@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Noto Serif SC', 'Songti SC', serif;
+    --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    height: 100dvh;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-sans);
+    background-color: #131e21;
+    color: #f3efe6;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+.pt-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+}
+
+@keyframes slow-pan {
+  0% {
+    transform: scale(1.06) translate3d(0%, 0%, 0);
+  }
+  50% {
+    transform: scale(1.1) translate3d(-1.2%, -0.8%, 0);
+  }
+  100% {
+    transform: scale(1.06) translate3d(0%, 0%, 0);
+  }
+}
+
+@keyframes ink-ripple {
+  0% {
+    transform: scale(0.45);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.65);
+    opacity: 0;
+  }
+}
+
+@keyframes head-breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.16);
+    opacity: 1;
+  }
+}
+
+@keyframes valid-hint-breathe {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes modal-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dash-flow {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
+@keyframes board-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  50% { transform: translateX(4px); }
+  75% { transform: translateX(-2px); }
+}
+
+.animate-slow-pan {
+  animation: slow-pan 28s ease-in-out infinite;
+}
+
+.animate-ink-ripple {
+  animation: ink-ripple 480ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-head-breathe {
+  animation: head-breathe 1.8s ease-in-out infinite;
+}
+
+.animate-valid-breathe {
+  animation: valid-hint-breathe 1.7s ease-in-out infinite;
+}
+
+.animate-modal-enter {
+  animation: modal-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-dash-flow {
+  animation: dash-flow 1.2s linear infinite;
+}
+
+.animate-board-shake {
+  animation: board-shake 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slow-pan,
+  .animate-head-breathe,
+  .animate-valid-breathe,
+  .animate-dash-flow {
+    animation: none !important;
+  }
+  .animate-ink-ripple,
+  .animate-modal-enter,
+  .animate-board-shake {
+    animation-duration: 1ms !important;
+  }
+}
