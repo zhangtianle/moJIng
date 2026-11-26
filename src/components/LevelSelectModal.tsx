@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { Calendar, Shuffle, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Award, Calendar, Shuffle, X } from 'lucide-react';
 import { CHAPTERS, LEVELS } from '../game/levels';
 import { SaveProgress } from '../game/types';
 import { getTodayDateString } from '../game/daily';
+import { computeScholarSummary } from '../game/titles';
 import { SealStarIcon } from './TileIcons';
 
 interface LevelSelectModalProps {
@@ -11,6 +12,7 @@ interface LevelSelectModalProps {
   onSelectLevel: (levelId: number) => void;
   onStartDaily: () => void;
   onStartEndless: () => void;
+  onOpenDashboard: () => void;
   onClose: () => void;
 }
 
@@ -20,11 +22,13 @@ export function LevelSelectModal({
   onSelectLevel,
   onStartDaily,
   onStartEndless,
+  onOpenDashboard,
   onClose,
 }: LevelSelectModalProps) {
   const initialChapter =
     LEVELS.find((l) => l.id === currentLevelId)?.chapter ?? 1;
   const [activeChapter, setActiveChapter] = useState<number>(initialChapter);
+  const scholar = useMemo(() => computeScholarSummary(progress), [progress]);
 
   const chapterInfo = CHAPTERS.find((c) => c.id === activeChapter) ?? CHAPTERS[0];
   const chapterLevels = LEVELS.filter((l) => l.chapter === activeChapter);
@@ -43,21 +47,33 @@ export function LevelSelectModal({
     >
       <div className="animate-modal-enter w-full sm:max-w-lg max-h-[88dvh] flex flex-col rounded-t-3xl sm:rounded-2xl bg-[#162428] border border-[#31484d] shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#273c41]">
-          <div>
+        <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-[#273c41]">
+          <div className="min-w-0">
             <h2 className="font-display text-lg font-bold text-[#f3efe6]">选关目录</h2>
-            <p className="text-xs text-[#9bb1ad] mt-0.5 font-mono-num">
-              四卷二十四局 · 循序解锁亦可自由研习
+            <p className="text-xs text-[#9bb1ad] mt-0.5 font-mono-num truncate">
+              <span>当前称号：{scholar.activeTitle.title}</span>
+              <span className="mx-1.5 text-[#4e676c]" aria-hidden="true">·</span>
+              <span>已通 {scholar.completedCount}/{LEVELS.length}</span>
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="关闭目录"
-            className="min-h-[44px] min-w-[44px] rounded-xl text-[#b6c9c5] hover:text-[#f3efe6] hover:bg-[#22353a] transition-colors flex items-center justify-center"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={onOpenDashboard}
+              className="min-h-[40px] px-3 rounded-xl bg-[#1e3136] hover:bg-[#274046] border border-[#3a575d] text-[#f6df9e] text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <Award className="w-3.5 h-3.5 text-[#e9c46a] shrink-0" />
+              <span>雅士录</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="关闭目录"
+              className="min-h-[44px] min-w-[44px] rounded-xl text-[#b6c9c5] hover:text-[#f3efe6] hover:bg-[#22353a] transition-colors flex items-center justify-center"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Daily & Random quick entries */}
@@ -162,8 +178,12 @@ export function LevelSelectModal({
                     <div className="text-sm font-medium text-[#f3efe6] truncate">
                       {lv.title}
                     </div>
-                    <div className="text-[11px] text-[#8ba39f] font-mono-num mt-0.5">
-                      {lv.rows}×{lv.cols}
+                    <div className="text-[11px] text-[#8ba39f] font-mono-num mt-0.5 truncate">
+                      {rec?.bestHonor ? (
+                        <span className="text-[#e9c46a]/90">{rec.bestHonor}</span>
+                      ) : (
+                        `${lv.rows}×${lv.cols}`
+                      )}
                       {rec ? ` · ${rec.bestTimeSec}s` : ''}
                     </div>
                   </div>

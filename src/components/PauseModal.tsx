@@ -1,10 +1,11 @@
-import { Grid2x2, Home, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { Award, Grid2x2, Home, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 
 interface PauseModalProps {
   muted: boolean;
   onResume: () => void;
   onRestart: () => void;
   onOpenLevelSelect: () => void;
+  onOpenDashboard: () => void;
   onToggleMute: () => void;
   onBackToTitle: () => void;
 }
@@ -14,6 +15,7 @@ export function PauseModal({
   onResume,
   onRestart,
   onOpenLevelSelect,
+  onOpenDashboard,
   onToggleMute,
   onBackToTitle,
 }: PauseModalProps) {
@@ -69,6 +71,15 @@ export function PauseModal({
           >
             <Play className="w-4 h-4 fill-current shrink-0" />
             <span>继续解谜</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenDashboard}
+            className="w-full min-h-[44px] px-4 py-2 rounded-xl bg-[#223532] hover:bg-[#2c433f] border border-[#4a6b5e] text-[#f6df9e] text-sm font-medium transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+          >
+            <Award className="w-4 h-4 text-[#e9c46a] shrink-0" />
+            <span>雅士录 · 称号与进度</span>
           </button>
 
           <div className="grid grid-cols-2 gap-2.5">

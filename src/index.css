@@ -109,6 +109,76 @@
   75% { transform: translateX(-2px); }
 }
 
+@keyframes star-pop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.32) rotate(-18deg);
+  }
+  58% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.2) rotate(5deg);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(0) scale(0.95) rotate(-1.5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes star-muted-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.82);
+  }
+  100% {
+    opacity: 0.6;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes kintsugi-ring-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.85);
+  }
+}
+
+@keyframes kintsugi-spark-out {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--spark-angle)) translateY(0px) scale(0.5);
+  }
+  30% {
+    opacity: 0.95;
+    transform: rotate(var(--spark-angle)) translateY(-10px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(var(--spark-angle)) translateY(-20px) scale(0.2);
+  }
+}
+
+@keyframes kintsugi-glint-pulse {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0.7) rotate(0deg);
+  }
+  45% {
+    opacity: 0.92;
+    transform: scale(1.1) rotate(14deg);
+  }
+}
+
 .animate-slow-pan {
   animation: slow-pan 28s ease-in-out infinite;
 }
@@ -137,16 +207,47 @@
   animation: board-shake 200ms ease-out;
 }
 
+.animate-star-pop {
+  opacity: 0;
+  animation: star-pop-in 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-star-muted {
+  opacity: 0;
+  animation: star-muted-in 260ms ease-out forwards;
+}
+
+.animate-kintsugi-ring {
+  opacity: 0;
+  animation: kintsugi-ring-burst 560ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-kintsugi-spark {
+  opacity: 0;
+  animation: kintsugi-spark-out 520ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-kintsugi-glint {
+  opacity: 0;
+  animation: kintsugi-glint-pulse 2.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-slow-pan,
   .animate-head-breathe,
   .animate-valid-breathe,
-  .animate-dash-flow {
+  .animate-dash-flow,
+  .animate-kintsugi-glint {
     animation: none !important;
   }
   .animate-ink-ripple,
   .animate-modal-enter,
-  .animate-board-shake {
+  .animate-board-shake,
+  .animate-star-pop,
+  .animate-star-muted,
+  .animate-kintsugi-ring,
+  .animate-kintsugi-spark {
     animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
   }
 }

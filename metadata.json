@@ -2,5 +2,7 @@
   "name": "墨径 · 一笔通幽",
   "description": "宋韵青瓷金缮主题益智一笔画解谜游戏，支持触控滑动与键盘操作。",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Calendar, Grid2x2, Play, Volume2, VolumeX } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Award, Calendar, Grid2x2, Play, Volume2, VolumeX } from 'lucide-react';
 import { TitleLockup } from './TitleLockup';
 import { SaveProgress } from '../game/types';
 import { LEVELS } from '../game/levels';
 import { getTodayDateString } from '../game/daily';
+import { computeScholarSummary } from '../game/titles';
 
 const TITLE_BACKDROP_SRC = '/src/assets/images/title_courtyard_backdrop_1795664840603.jpg';
 
@@ -13,6 +14,7 @@ interface TitleScreenProps {
   onToggleMute: () => void;
   onStartPrimary: () => void;
   onOpenLevelSelect: () => void;
+  onOpenDashboard: () => void;
   onStartDaily: () => void;
 }
 
@@ -22,20 +24,19 @@ export function TitleScreen({
   onToggleMute,
   onStartPrimary,
   onOpenLevelSelect,
+  onOpenDashboard,
   onStartDaily,
 }: TitleScreenProps) {
   const [imgFailed, setImgFailed] = useState(false);
 
-  const completedCount = Object.keys(progress.completed).length;
-  const totalStars = Object.values(progress.completed).reduce((sum, r) => sum + r.stars, 0);
-  const maxStars = LEVELS.length * 3;
+  const scholar = useMemo(() => computeScholarSummary(progress), [progress]);
   const todayDone = Boolean(progress.dailyCompleted[getTodayDateString()]);
 
   const nextLevelId = Math.min(
     LEVELS.length,
     Math.max(1, progress.lastLevelId)
   );
-  const hasProgress = completedCount > 0;
+  const hasProgress = scholar.completedCount > 0;
 
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-[#131e21] flex flex-col justify-between">
@@ -57,8 +58,22 @@ export function TitleScreen({
         <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#0d1619] via-[#0d1619]/70 to-transparent" />
       </div>
 
-      {/* Top perimeter utility bar (only functional mute toggle) */}
-      <div className="relative z-10 flex items-center justify-end px-4 sm:px-8 pt-safe pt-3">
+      {/* Top perimeter utility bar */}
+      <div className="relative z-10 flex items-center justify-between px-4 sm:px-8 pt-safe pt-3">
+        <button
+          type="button"
+          onClick={onOpenDashboard}
+          className="min-h-[44px] px-3.5 rounded-xl bg-[#162428]/80 border border-[#3a5459]/75 hover:bg-[#1f3338] hover:border-[#d9a74a]/70 transition-colors flex items-center gap-2.5 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-[#e9c46a]"
+        >
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded bg-[#c94433] border border-[#ef9a8a]/70 font-display text-xs font-bold text-[#faf4ee] shrink-0">
+            {scholar.activeTitle.sealChar}
+          </span>
+          <span className="font-display text-sm font-semibold text-[#f6df9e] tracking-wider">
+            {scholar.activeTitle.title}
+          </span>
+          <span className="text-xs text-[#9cb3af] hidden sm:inline">· 雅士录</span>
+        </button>
+
         <button
           type="button"
           onClick={onToggleMute}
@@ -75,9 +90,15 @@ export function TitleScreen({
 
         {/* Quiet unboxed progress metadata */}
         <p className="mt-4 text-xs sm:text-sm text-[#c6d6d2] tracking-wide font-mono-num">
-          <span>已通 {completedCount} / {LEVELS.length} 关</span>
+          <span>已通 {scholar.completedCount} / {LEVELS.length} 关</span>
           <span className="mx-2.5 text-[#587276]" aria-hidden="true">·</span>
-          <span>获印 {totalStars} / {maxStars}</span>
+          <span>获印 {scholar.totalStars} / {scholar.maxStars}</span>
+          {scholar.completedCount > 0 && (
+            <>
+              <span className="mx-2.5 text-[#587276]" aria-hidden="true">·</span>
+              <span>连贯 {scholar.avgFluency}%</span>
+            </>
+          )}
           {todayDone && (
             <>
               <span className="mx-2.5 text-[#587276]" aria-hidden="true">·</span>
@@ -87,7 +108,7 @@ export function TitleScreen({
         </p>
 
         {/* Primary CTA + quiet secondary actions */}
-        <div className="mt-8 w-full max-w-xs flex flex-col items-center gap-3">
+        <div className="mt-7 w-full max-w-xs flex flex-col items-center gap-3">
           <button
             type="button"
             onClick={onStartPrimary}
@@ -97,23 +118,32 @@ export function TitleScreen({
             <span>{hasProgress ? `继续第 ${String(nextLevelId).padStart(2, '0')} 关` : '开始解谜'}</span>
           </button>
 
-          <div className="w-full grid grid-cols-2 gap-3">
+          <div className="w-full grid grid-cols-3 gap-2.5">
             <button
               type="button"
               onClick={onOpenLevelSelect}
-              className="min-h-[46px] px-4 py-2.5 rounded-xl bg-[#18272b]/85 hover:bg-[#22363b] active:scale-[0.98] border border-[#3a5459]/80 text-[#efeae0] text-sm font-medium transition-all duration-150 flex items-center justify-center gap-2 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-[#e9c46a]"
+              className="min-h-[46px] px-3 py-2.5 rounded-xl bg-[#18272b]/85 hover:bg-[#22363b] active:scale-[0.98] border border-[#3a5459]/80 text-[#efeae0] text-xs sm:text-sm font-medium transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-[#e9c46a]"
             >
               <Grid2x2 className="w-4 h-4 text-[#9ec2b9] shrink-0" />
-              <span>选关目录</span>
+              <span>选关</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onOpenDashboard}
+              className="min-h-[46px] px-3 py-2.5 rounded-xl bg-[#18272b]/85 hover:bg-[#22363b] active:scale-[0.98] border border-[#3a5459]/80 text-[#f6df9e] text-xs sm:text-sm font-medium transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-[#e9c46a]"
+            >
+              <Award className="w-4 h-4 text-[#e9c46a] shrink-0" />
+              <span>雅士录</span>
             </button>
 
             <button
               type="button"
               onClick={onStartDaily}
-              className="min-h-[46px] px-4 py-2.5 rounded-xl bg-[#18272b]/85 hover:bg-[#22363b] active:scale-[0.98] border border-[#3a5459]/80 text-[#efeae0] text-sm font-medium transition-all duration-150 flex items-center justify-center gap-2 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-[#e9c46a]"
+              className="min-h-[46px] px-3 py-2.5 rounded-xl bg-[#18272b]/85 hover:bg-[#22363b] active:scale-[0.98] border border-[#3a5459]/80 text-[#efeae0] text-xs sm:text-sm font-medium transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap focus-visible:outline-2 focus-visible:outline-[#e9c46a]"
             >
               <Calendar className="w-4 h-4 text-[#e9c46a] shrink-0" />
-              <span>每日雅局</span>
+              <span>每日</span>
             </button>
           </div>
         </div>

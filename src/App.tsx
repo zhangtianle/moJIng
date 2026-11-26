@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Award,
   Calendar,
   Grid2x2,
   Home,
@@ -15,6 +16,7 @@ import {
   Coord,
   GameScreen,
   HintOverlay,
+  LevelRunMetrics,
   LevelSpec,
   SaveProgress,
 } from './game/types';
@@ -33,12 +35,14 @@ import {
   getTodayDateString,
 } from './game/daily';
 import { loadProgress, saveProgress } from './game/storage';
+import { computeScholarSummary, evaluateRunMetrics } from './game/titles';
 import { soundEngine } from './game/audio';
 import { TitleScreen } from './components/TitleScreen';
 import { PuzzleBoard } from './components/PuzzleBoard';
 import { LevelSelectModal } from './components/LevelSelectModal';
 import { VictoryModal } from './components/VictoryModal';
 import { PauseModal } from './components/PauseModal';
+import { ScholarDashboardModal } from './components/ScholarDashboardModal';
 
 const BOARD_TEXTURE_SRC = '/src/assets/images/board_stone_texture_1795664840492.jpg';
 
@@ -63,14 +67,20 @@ export default function App() {
   });
 
   const board = useMemo(() => buildLevelBoard(currentSpec), [currentSpec]);
+  const scholar = useMemo(() => computeScholarSummary(progress), [progress]);
   const [path, setPath] = useState<Coord[]>(() => [board.start]);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [hintsUsed, setHintsUsed] = useState(0);
+  const [undoCount, setUndoCount] = useState(0);
+  const [restartCount, setRestartCount] = useState(0);
+  const [stepsTaken, setStepsTaken] = useState(0);
   const [hintTier, setHintTier] = useState<0 | 1 | 2 | 3>(0);
   const [hintOverlay, setHintOverlay] = useState<HintOverlay | null>(null);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [shakeTrigger, setShakeTrigger] = useState(0);
   const [earnedStars, setEarnedStars] = useState<1 | 2 | 3>(3);
+  const [lastRunMetrics, setLastRunMetrics] = useState<LevelRunMetrics | null>(null);
+  const [newlyUnlockedTitles, setNewlyUnlockedTitles] = useState<string[]>([]);
   const [textureFailed, setTextureFailed] = useState(false);
 
   const feedbackTimerRef = useRef<number | null>(null);
@@ -108,9 +118,14 @@ export default function App() {
       setPath([nextBoard.start]);
       setElapsedSec(0);
       setHintsUsed(0);
+      setUndoCount(0);
+      setRestartCount(0);
+      setStepsTaken(0);
       setHintTier(0);
       setHintOverlay(null);
       setFeedbackMsg(null);
+      setLastRunMetrics(null);
+      setNewlyUnlockedTitles([]);
       setModal('NONE');
       setScreen('PLAYING');
 
@@ -145,54 +160,125 @@ export default function App() {
     updateProgress((prev) => ({ ...prev, muted: nextMuted }));
   }, [progress.muted, updateProgress]);
 
+  const handleEquipTitle = useCallback(
+    (titleId: string | null) => {
+      soundEngine.playClick();
+      updateProgress((prev) => ({ ...prev, equippedTitleId: titleId }));
+    },
+    [updateProgress]
+  );
+
   const handleComplete = useCallback(
-    (finalHintsUsed: number, finalElapsedSec: number) => {
+    (
+      finalHintsUsed: number,
+      finalElapsedSec: number,
+      finalUndoCount: number,
+      finalRestartCount: number,
+      finalStepsTaken: number
+    ) => {
       const stars: 1 | 2 | 3 =
         finalHintsUsed === 0 ? 3 : finalHintsUsed === 1 ? 2 : 1;
+      const metrics = evaluateRunMetrics(
+        board,
+        finalElapsedSec,
+        finalHintsUsed,
+        finalUndoCount,
+        finalRestartCount,
+        finalStepsTaken
+      );
       setEarnedStars(stars);
+      setLastRunMetrics(metrics);
       soundEngine.playVictory();
 
-      updateProgress((prev) => {
-        if (currentSpec.isDaily && currentSpec.dailyDate) {
-          const existing = prev.dailyCompleted[currentSpec.dailyDate];
-          return {
-            ...prev,
-            dailyCompleted: {
-              ...prev.dailyCompleted,
-              [currentSpec.dailyDate]: {
-                stars: existing ? (Math.max(existing.stars, stars) as 1 | 2 | 3) : stars,
-                timeSec: existing
-                  ? Math.min(existing.timeSec, finalElapsedSec)
-                  : finalElapsedSec,
-              },
-            },
-          };
-        }
-        if (currentSpec.chapter === 0) return prev;
+      const beforeSummary = computeScholarSummary(progress);
+      const beforeUnlocked = new Set<string>([
+        beforeSummary.careerRank.id,
+        ...beforeSummary.badges.filter((b) => b.unlocked).map((b) => b.id),
+      ]);
 
-        const existing = prev.completed[currentSpec.id];
+      let nextProgressSnapshot = progress;
+      if (currentSpec.isDaily && currentSpec.dailyDate) {
+        const existing = progress.dailyCompleted[currentSpec.dailyDate];
+        nextProgressSnapshot = {
+          ...progress,
+          dailyCompleted: {
+            ...progress.dailyCompleted,
+            [currentSpec.dailyDate]: {
+              stars: existing ? (Math.max(existing.stars, stars) as 1 | 2 | 3) : stars,
+              timeSec: existing
+                ? Math.min(existing.timeSec, finalElapsedSec)
+                : finalElapsedSec,
+              fluency: existing?.fluency
+                ? Math.max(existing.fluency, metrics.fluencyScore)
+                : metrics.fluencyScore,
+              honor:
+                !existing?.fluency || metrics.fluencyScore >= existing.fluency
+                  ? metrics.honorTitle
+                  : existing.honor,
+            },
+          },
+        };
+      } else if (currentSpec.chapter > 0) {
+        const existing = progress.completed[currentSpec.id];
         const nextUnlock = Math.min(LEVELS.length, currentSpec.id + 1);
-        return {
-          ...prev,
-          lastLevelId: Math.max(prev.lastLevelId, nextUnlock),
+        const isBetterFluency =
+          existing?.bestFluency === undefined ||
+          metrics.fluencyScore >= existing.bestFluency;
+
+        nextProgressSnapshot = {
+          ...progress,
+          lastLevelId: Math.max(progress.lastLevelId, nextUnlock),
           completed: {
-            ...prev.completed,
+            ...progress.completed,
             [currentSpec.id]: {
               stars: existing ? (Math.max(existing.stars, stars) as 1 | 2 | 3) : stars,
               bestTimeSec: existing
                 ? Math.min(existing.bestTimeSec, finalElapsedSec)
                 : finalElapsedSec,
               completedAt: Date.now(),
+              bestFluency: existing?.bestFluency
+                ? Math.max(existing.bestFluency, metrics.fluencyScore)
+                : metrics.fluencyScore,
+              bestStepsTaken: existing?.bestStepsTaken
+                ? Math.min(existing.bestStepsTaken, metrics.stepsTaken)
+                : metrics.stepsTaken,
+              optimalSteps: metrics.optimalSteps,
+              bestHonor: isBetterFluency
+                ? metrics.honorTitle
+                : existing?.bestHonor ?? metrics.honorTitle,
+              perfectFluency: Boolean(
+                existing?.perfectFluency || metrics.fluencyScore === 100
+              ),
+              zeroUndo: Boolean(
+                existing?.zeroUndo ||
+                  (finalUndoCount === 0 && metrics.stepsTaken <= metrics.optimalSteps)
+              ),
+              zeroHint: Boolean(existing?.zeroHint || finalHintsUsed === 0),
             },
           },
         };
-      });
+      }
+
+      const afterSummary = computeScholarSummary(nextProgressSnapshot);
+      const unlockedNow: string[] = [];
+      if (!beforeUnlocked.has(afterSummary.careerRank.id)) {
+        unlockedNow.push(afterSummary.careerRank.title);
+      }
+      for (const b of afterSummary.badges) {
+        if (b.unlocked && !beforeUnlocked.has(b.id)) {
+          unlockedNow.push(b.title);
+        }
+      }
+      setNewlyUnlockedTitles(unlockedNow);
+
+      setProgress(nextProgressSnapshot);
+      saveProgress(nextProgressSnapshot);
 
       victoryTimerRef.current = window.setTimeout(() => {
         setModal('VICTORY');
       }, 360);
     },
-    [currentSpec, updateProgress]
+    [board, currentSpec, progress]
   );
 
   const handleStepTo = useCallback(
@@ -208,12 +294,15 @@ export default function App() {
         return false;
       }
 
+      const deltaSteps = Math.max(1, res.nextPath.length - path.length);
+      const nextStepsTaken = stepsTaken + deltaSteps;
+      setStepsTaken(nextStepsTaken);
       setPath(res.nextPath);
       setHintOverlay(null);
       setHintTier(0);
 
       if (isLevelComplete(board, res.nextPath)) {
-        handleComplete(hintsUsed, elapsedSec);
+        handleComplete(hintsUsed, elapsedSec, undoCount, restartCount, nextStepsTaken);
       } else if (res.event === 'portal') {
         soundEngine.playPortal();
       } else if (res.event === 'bridge') {
@@ -225,13 +314,26 @@ export default function App() {
       }
       return true;
     },
-    [board, elapsedSec, flashFeedback, handleComplete, hintsUsed, isComplete, modal, path]
+    [
+      board,
+      elapsedSec,
+      flashFeedback,
+      handleComplete,
+      hintsUsed,
+      isComplete,
+      modal,
+      path,
+      restartCount,
+      stepsTaken,
+      undoCount,
+    ]
   );
 
   const handleUndo = useCallback(() => {
     if (modal !== 'NONE' || isComplete || path.length <= 1) return;
     const next = applyUndo(board, path);
     setPath(next);
+    setUndoCount((c) => c + 1);
     setHintOverlay(null);
     setHintTier(0);
     soundEngine.playBacktrack();
@@ -243,6 +345,7 @@ export default function App() {
       const next = trimPathToIndex(board, path, idx);
       if (next.length !== path.length) {
         setPath(next);
+        setUndoCount((c) => c + 1);
         setHintOverlay(null);
         setHintTier(0);
         soundEngine.playBacktrack();
@@ -257,12 +360,25 @@ export default function App() {
       window.clearTimeout(victoryTimerRef.current);
       victoryTimerRef.current = null;
     }
+    const wasFinished = isLevelComplete(board, path);
     setPath([board.start]);
     setHintOverlay(null);
     setHintTier(0);
     setFeedbackMsg(null);
     setModal('NONE');
-  }, [board.start]);
+    if (wasFinished) {
+      // Fresh replay from Victory Modal resets all run metrics cleanly
+      setElapsedSec(0);
+      setHintsUsed(0);
+      setUndoCount(0);
+      setRestartCount(0);
+      setStepsTaken(0);
+      setLastRunMetrics(null);
+      setNewlyUnlockedTitles([]);
+    } else if (path.length > 1) {
+      setRestartCount((c) => c + 1);
+    }
+  }, [board, path]);
 
   const handleHint = useCallback(() => {
     if (modal !== 'NONE' || isComplete) return;
@@ -319,7 +435,7 @@ export default function App() {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       if (screen === 'TITLE_MENU') {
-        if (modal === 'LEVEL_SELECT' && e.key === 'Escape') {
+        if ((modal === 'LEVEL_SELECT' || modal === 'SCHOLAR_DASHBOARD') && e.key === 'Escape') {
           e.preventDefault();
           setModal('NONE');
           return;
@@ -334,7 +450,13 @@ export default function App() {
       if (e.key === 'Escape') {
         e.preventDefault();
         if (modal === 'NONE') setModal('PAUSED');
-        else if (modal === 'PAUSED' || modal === 'LEVEL_SELECT') setModal('NONE');
+        else if (
+          modal === 'PAUSED' ||
+          modal === 'LEVEL_SELECT' ||
+          modal === 'SCHOLAR_DASHBOARD'
+        ) {
+          setModal('NONE');
+        }
         return;
       }
 
@@ -426,6 +548,10 @@ export default function App() {
             soundEngine.playClick();
             setModal('LEVEL_SELECT');
           }}
+          onOpenDashboard={() => {
+            soundEngine.playClick();
+            setModal('SCHOLAR_DASHBOARD');
+          }}
           onStartDaily={handleStartDaily}
         />
         {modal === 'LEVEL_SELECT' && (
@@ -435,6 +561,17 @@ export default function App() {
             onSelectLevel={handleSelectLevelById}
             onStartDaily={handleStartDaily}
             onStartEndless={handleStartEndless}
+            onOpenDashboard={() => {
+              soundEngine.playClick();
+              setModal('SCHOLAR_DASHBOARD');
+            }}
+            onClose={() => setModal('NONE')}
+          />
+        )}
+        {modal === 'SCHOLAR_DASHBOARD' && (
+          <ScholarDashboardModal
+            progress={progress}
+            onEquipTitle={handleEquipTitle}
             onClose={() => setModal('NONE')}
           />
         )}
@@ -629,9 +766,41 @@ export default function App() {
       </nav>
 
       {/* ==================== DESKTOP ARCHITECTURAL SIDE RAIL (lg+) ==================== */}
-      <aside className="hidden lg:flex relative z-20 w-[340px] xl:w-[376px] shrink-0 flex-col justify-between bg-[#152327]/95 border-l border-[#294045] p-6 xl:p-7">
+      <aside className="hidden lg:flex relative z-20 w-[340px] xl:w-[376px] shrink-0 flex-col justify-between bg-[#152327]/95 border-l border-[#294045] p-6 xl:p-7 overflow-y-auto">
         {/* Level Header & Telemetry */}
         <div>
+          {/* Integrated Player Calligrapher Title Card */}
+          <button
+            type="button"
+            onClick={() => {
+              soundEngine.playClick();
+              setModal('SCHOLAR_DASHBOARD');
+            }}
+            className="w-full mb-5 p-3 rounded-xl bg-[#111c1f] hover:bg-[#18272b] border border-[#2a4045] hover:border-[#d9a74a]/65 transition-colors flex items-center gap-3 text-left"
+          >
+            <span className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#c94433] border border-[#ef9888]/75 font-display text-base font-bold text-[#faf4ee] shrink-0">
+              {scholar.activeTitle.sealChar}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-display text-sm font-bold text-[#f6df9e] tracking-wider truncate">
+                  {scholar.activeTitle.title}
+                </span>
+                <span className="text-[11px] text-[#9cb3af] whitespace-nowrap shrink-0 flex items-center gap-1">
+                  <Award className="w-3 h-3 text-[#e9c46a]" />
+                  <span>雅士录</span>
+                </span>
+              </div>
+              <div className="mt-0.5 font-mono-num text-[11px] text-[#8fa7a3] truncate">
+                <span>通 {scholar.completedCount}/{scholar.totalLevels}</span>
+                <span className="mx-1.5 text-[#465e63]" aria-hidden="true">·</span>
+                <span>连贯 {scholar.completedCount > 0 ? `${scholar.avgFluency}%` : '--'}</span>
+                <span className="mx-1.5 text-[#465e63]" aria-hidden="true">·</span>
+                <span>印号 {scholar.unlockedBadgeCount}/{scholar.badges.length}</span>
+              </div>
+            </div>
+          </button>
+
           <p className="text-xs text-[#8fa8a4] tracking-wide">
             {chapterMeta ? chapterMeta.title : currentSpec.isDaily ? `每日雅局 · ${todayStr}` : '无尽演练'}
           </p>
@@ -645,7 +814,7 @@ export default function App() {
           </div>
 
           {/* Step progress bar & numeric telemetry */}
-          <div className="mt-5 pt-5 border-t border-[#253a3f]">
+          <div className="mt-4 pt-4 border-t border-[#253a3f]">
             <div className="flex items-center justify-between text-xs text-[#9cb3af] font-mono-num">
               <span>石阶进度</span>
               <span className="text-[#f3efe6] font-semibold">
@@ -659,16 +828,22 @@ export default function App() {
               />
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+            <div className="mt-3.5 grid grid-cols-3 gap-2 text-xs">
               <div>
                 <span className="text-[#8ba39f]">耗时</span>
-                <div className="mt-0.5 font-mono-num text-base font-semibold text-[#f3efe6]">
+                <div className="mt-0.5 font-mono-num text-sm font-semibold text-[#f3efe6]">
                   {formatClock(elapsedSec)}
                 </div>
               </div>
               <div>
-                <span className="text-[#8ba39f]">锦囊使用</span>
-                <div className="mt-0.5 font-mono-num text-base font-semibold text-[#f3efe6]">
+                <span className="text-[#8ba39f]">撤步</span>
+                <div className="mt-0.5 font-mono-num text-sm font-semibold text-[#f3efe6]">
+                  {undoCount} 次
+                </div>
+              </div>
+              <div>
+                <span className="text-[#8ba39f]">锦囊</span>
+                <div className="mt-0.5 font-mono-num text-sm font-semibold text-[#f3efe6]">
                   {hintsUsed} 次
                 </div>
               </div>
@@ -802,6 +977,10 @@ export default function App() {
             soundEngine.playClick();
             setModal('LEVEL_SELECT');
           }}
+          onOpenDashboard={() => {
+            soundEngine.playClick();
+            setModal('SCHOLAR_DASHBOARD');
+          }}
           onToggleMute={handleToggleMute}
           onBackToTitle={() => {
             soundEngine.playClick();
@@ -818,22 +997,38 @@ export default function App() {
           onSelectLevel={handleSelectLevelById}
           onStartDaily={handleStartDaily}
           onStartEndless={handleStartEndless}
+          onOpenDashboard={() => {
+            soundEngine.playClick();
+            setModal('SCHOLAR_DASHBOARD');
+          }}
           onClose={() => setModal('NONE')}
         />
       )}
 
-      {modal === 'VICTORY' && (
+      {modal === 'SCHOLAR_DASHBOARD' && (
+        <ScholarDashboardModal
+          progress={progress}
+          onEquipTitle={handleEquipTitle}
+          onClose={() => setModal('NONE')}
+        />
+      )}
+
+      {modal === 'VICTORY' && lastRunMetrics && (
         <VictoryModal
           level={currentSpec}
           stars={earnedStars}
-          elapsedSec={elapsedSec}
-          hintsUsed={hintsUsed}
+          runMetrics={lastRunMetrics}
+          newlyUnlockedTitles={newlyUnlockedTitles}
           hasNextLevel={currentSpec.chapter > 0 && currentSpec.id < LEVELS.length}
           onNextLevel={handleNextLevel}
           onReplay={handleRestart}
           onOpenLevelSelect={() => {
             soundEngine.playClick();
             setModal('LEVEL_SELECT');
+          }}
+          onOpenDashboard={() => {
+            soundEngine.playClick();
+            setModal('SCHOLAR_DASHBOARD');
           }}
           onNextRandom={handleStartEndless}
         />

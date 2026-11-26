@@ -7,6 +7,7 @@ const DEFAULT_PROGRESS: SaveProgress = {
   dailyCompleted: {},
   lastLevelId: 1,
   muted: false,
+  equippedTitleId: null,
 };
 
 export function loadProgress(): SaveProgress {
@@ -19,6 +20,7 @@ export function loadProgress(): SaveProgress {
       dailyCompleted: parsed.dailyCompleted ?? {},
       lastLevelId: typeof parsed.lastLevelId === 'number' ? parsed.lastLevelId : 1,
       muted: Boolean(parsed.muted),
+      equippedTitleId: typeof parsed.equippedTitleId === 'string' ? parsed.equippedTitleId : null,
     };
   } catch {
     return { ...DEFAULT_PROGRESS };

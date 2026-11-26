@@ -207,6 +207,45 @@ class SoundEngine {
     });
   }
 
+  public playStarPop(starIndex: 1 | 2 | 3) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    // Rising pentatonic bell tones: E5 -> G5 -> C6
+    const freqs = [659.25, 783.99, 1046.5];
+    const freq = freqs[starIndex - 1] ?? 783.99;
+
+    const osc = ctx.createOscillator();
+    const shimmer = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const shimmerGain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+
+    shimmer.type = 'triangle';
+    shimmer.frequency.setValueAtTime(freq * 1.5, now);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.085, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0006, now + 0.38);
+
+    shimmerGain.gain.setValueAtTime(0.001, now);
+    shimmerGain.gain.linearRampToValueAtTime(0.028, now + 0.01);
+    shimmerGain.gain.exponentialRampToValueAtTime(0.0005, now + 0.22);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    shimmer.connect(shimmerGain);
+    shimmerGain.connect(ctx.destination);
+
+    osc.start(now);
+    shimmer.start(now);
+    osc.stop(now + 0.4);
+    shimmer.stop(now + 0.24);
+  }
+
   public playClick() {
     const ctx = this.ensureContext();
     if (!ctx) return;

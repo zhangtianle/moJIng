@@ -54,19 +54,52 @@ export interface LevelBoard {
 
 export type GameScreen = 'TITLE_MENU' | 'PLAYING';
 
-export type ActiveModal = 'NONE' | 'PAUSED' | 'LEVEL_SELECT' | 'VICTORY';
+export type ActiveModal =
+  | 'NONE'
+  | 'PAUSED'
+  | 'LEVEL_SELECT'
+  | 'VICTORY'
+  | 'SCHOLAR_DASHBOARD';
+
+export interface LevelRunMetrics {
+  elapsedSec: number;
+  hintsUsed: number;
+  undoCount: number;
+  restartCount: number;
+  stepsTaken: number;
+  optimalSteps: number;
+  fluencyScore: number; // 0 - 100
+  honorTitle: string;
+  honorDesc: string;
+}
 
 export interface LevelRecord {
   stars: 1 | 2 | 3;
   bestTimeSec: number;
   completedAt: number;
+  bestFluency?: number;
+  bestStepsTaken?: number;
+  optimalSteps?: number;
+  bestHonor?: string;
+  perfectFluency?: boolean;
+  zeroUndo?: boolean;
+  zeroHint?: boolean;
 }
 
 export interface SaveProgress {
   completed: Record<number, LevelRecord>;
-  dailyCompleted: Record<string, { timeSec: number; stars: 1 | 2 | 3 }>;
+  dailyCompleted: Record<
+    string,
+    {
+      timeSec: number;
+      stars: 1 | 2 | 3;
+      fluency?: number;
+      honor?: string;
+    }
+  >;
   lastLevelId: number;
   muted: boolean;
+  equippedTitleId?: string | null;
 }
 
 export interface HintOverlay {
